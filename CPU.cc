@@ -66,7 +66,7 @@ Add the following functionality.
     c)  Start the idle process to use the rest of the time slice.
 */
 
-#define NUM_SECONDS 3
+#define NUM_SECONDS 20
 
 using namespace std;
 
