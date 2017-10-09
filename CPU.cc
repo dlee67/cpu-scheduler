@@ -345,15 +345,37 @@ void create_idle ()
     running = idle;
 }
 
+void create_proc (char *proc_name)
+{
+    PCB* new_proc = new (PCB);
+    new_proc->state = NEW;
+    new_proc->name = proc_name;
+    new_proc->ppid = getpid();
+    new_proc->interrupts = 0;
+    new_proc->switches = 0;
+    new_proc->started = sys_time;
+
+    processes.push_back (new_proc);
+}
+
 int main (int argc, char **argv)
 {
     sys_time = 0;
+    int args_len = sizeof(argv);
     ISV[SIGALRM] = scheduler;       create_handler (SIGALRM, ISR);
     ISV[SIGCHLD] = process_done;    create_handler (SIGCHLD, ISR);
 
 
     // create a process to soak up cycles
     create_idle ();
+
+    // create a process for each argument
+    // 1. create func create_arg_procs
+    //    for each arg init proc (w/ state NEW), add process to proc list
+    for(int i=1;i<args_len;i++)
+    {
+        create_proc(argv[i]);
+    }
 
     cout << running;
 

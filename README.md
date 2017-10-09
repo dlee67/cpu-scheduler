@@ -6,6 +6,7 @@ This program does the following.
 
 When run, it should produce the following output (approximately):
 
+```
 state:        3
 name:         IDLE
 pid:          4493
@@ -22,7 +23,7 @@ In ISR stopped:   4493
 continuing  4493
 ---- leaving scheduler
 Terminated: 15
----------------------------------------------------------------------------
+```
 
 We will be adding the following functionality.
 1) Change the NUM_SECONDS to 20.
