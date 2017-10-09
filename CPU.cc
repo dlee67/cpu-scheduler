@@ -10,62 +10,6 @@
 #include <assert.h>
 #include <string.h>
 
-/*
-This program does the following.
-1) Create handlers for two signals.
-2) Create an idle process which will be executed when there is nothing
-   else to do.
-3) Create a send_signals process that sends a SIGALRM every so often
-
-When run, it should produce the following output (approximately):
-
-state:        3
-name:         IDLE
-pid:          4493
-ppid:         4491
-interrupts:   0
-switches:     0
-started:      0
-In ISR stopped:   4493
----- entering scheduler
-continuing  4493
----- leaving scheduler
-In ISR stopped:   4493
----- entering scheduler
-continuing  4493
----- leaving scheduler
-Terminated: 15
----------------------------------------------------------------------------
-Add the following functionality.
-1) Change the NUM_SECONDS to 20.
-
-2) Take any number of arguments for executables, and place each on the
-    processes list with a state of NEW. These executables will not require
-    arguments themselves.
-
-3) When a SIGALRM arrives, scheduler() will be called. Currently, it runs
-    the only process in the system, the idle process. Instead, do the
-    following.
-    a)  Update the PCB for the process that was interrupted including the
-        number of context switches and interrupts it had, and changing its
-        state from RUNNING to READY.
-    b)  If there is a process with a NEW status on the processes list, change
-        its state to RUNNING, and fork() and execl() it.
-    c)  If there are no NEW processes, round robin between the READY
-        processes, not including the idle process.  If no process is READY
-        in the processes list, execute the idle process.
-
-4) When a SIGCHLD arrives notifying that a child has exited, process_done() is
-    called. process_done() currently only prints out the PID and the status.
-    a)  Add the printing of the information in the PCB including the number
-        of times it was interrupted, the number of times it was context
-        switched (this may be fewer than the interrupts if a process
-        becomes the only non-idle process in the ready queue), and the total
-        system time the process took.
-    b)  Change the state to TERMINATED.
-    c)  Start the idle process to use the rest of the time slice.
-*/
-
 #define NUM_SECONDS 20
 
 using namespace std;
@@ -224,8 +168,6 @@ struct sigaction *create_handler (int signum, void (*handler)(int))
 }
 
 int fork_proc(const char* name){
-    printf("%s", name);
-
     //create a child process
     pid_t fork_return = 0;
     fork_return = fork();
@@ -240,8 +182,6 @@ int fork_proc(const char* name){
     else if(fork_return == 0){
         //execute process
         execl(name, name, "0", NULL);
-        perror("Counter return invalid");
-        exit(errno);
     }
     // else we are the parent process
     return EXIT_SUCCESS;
@@ -281,9 +221,7 @@ void scheduler (int signum)
     for (PCB_iter = processes.begin(); PCB_iter != processes.end(); PCB_iter++)
     {
         // if we find a process of status RUNNING which is not the idle process
-        // use c++ string comparison
-        // (std::string("A") != std::string("Z"))
-        if((*PCB_iter)->state == READY && std::string((*PCB_iter)->name) != std::string("idle"))
+        if((*PCB_iter)->state == READY && std::string((*PCB_iter)->name) != std::string("IDLE"))
         {
             // change it to RUNNING and fork and execl it
             (*PCB_iter)->state = RUNNING;
@@ -295,18 +233,17 @@ void scheduler (int signum)
     for (PCB_iter = processes.begin(); PCB_iter != processes.end(); PCB_iter++)
     {
         // if we find the idle process
-        if(std::string((*PCB_iter)->name) != std::string("idle"))
+        if(std::string((*PCB_iter)->name) == std::string("IDLE"))
         {
             // change it to RUNNING
             (*PCB_iter)->state = RUNNING;
             break;
         }
-
     }
 
     if (kill (tocont->pid, SIGCONT) == -1)
     {
-        WRITES ("in sceduler kill error: ");
+        WRITES ("in scheduler kill error: ");
         WRITEI (errno, 7);
         WRITENL;
         return;
@@ -317,7 +254,9 @@ void scheduler (int signum)
 void process_done (int signum)
 {
     WRITES ("---- entering process_done\n");
+    cout << processes;
     assert (signum == SIGCHLD);
+    PCB* to_terminate = running;
 
     for (;;)
     {
@@ -339,6 +278,22 @@ void process_done (int signum)
             WRITES ("process exited: ");
             WRITEI (cpid, 7);
             WRITENL;
+        }
+    }
+
+    // set the current processes state to TERMINATED
+    to_terminate->state = TERMINATED;
+
+    // loop though process list looking for the idle proc, and set it as running
+    list<PCB *>::iterator PCB_iter;
+    for (PCB_iter = processes.begin(); PCB_iter != processes.end(); PCB_iter++)
+    {
+        // if we find the idle process
+        if(std::string((*PCB_iter)->name) == std::string("IDLE"))
+        {
+            // change it to RUNNING
+            (*PCB_iter)->state = RUNNING;
+            break;
         }
     }
 
@@ -441,6 +396,7 @@ int main (int argc, char **argv)
     {
         create_proc(argv[i]);
     }
+    //cout << processes;
 
     cout << running;
 
