@@ -173,11 +173,9 @@ ostream& operator << (ostream &os, struct PCB *pcb)
 /*
 ** an overloaded output operator that prints a list of PCBs
 */
-ostream& operator << (ostream &os, list<PCB *> which)
-{
+ostream& operator << (ostream &os, list<PCB *> which) {
     list<PCB *>::iterator PCB_iter;
-    for (PCB_iter = which.begin(); PCB_iter != which.end(); PCB_iter++)
-    {
+    for (PCB_iter = which.begin(); PCB_iter != which.end(); PCB_iter++) {
         os << (*PCB_iter);
     }
     return (os);
@@ -225,6 +223,30 @@ struct sigaction *create_handler (int signum, void (*handler)(int))
     return (action);
 }
 
+int fork_proc(const char* name){
+    printf("%s", name);
+
+    //create a child process
+    pid_t fork_return = 0;
+    fork_return = fork();
+
+    // here we check the return value of the fork, -1, 0, or >0
+    // an error ocurred
+    if(fork_return < 0){
+        perror("No fork: An error occured!");
+        exit(errno);
+    }
+        // we are the child process
+    else if(fork_return == 0){
+        //execute process
+        execl(name, name, "0", NULL);
+        perror("Counter return invalid");
+        exit(errno);
+    }
+    // else we are the parent process
+    return EXIT_SUCCESS;
+}
+
 void scheduler (int signum)
 {
     WRITES ("---- entering scheduler\n");
@@ -237,7 +259,50 @@ void scheduler (int signum)
     WRITEI (tocont->pid, 7);
     WRITENL;
 
-    tocont->state = RUNNING;
+    // update interrupted process
+    tocont->state = READY;
+    tocont->interrupts = tocont->interrupts++;
+    tocont->switches = tocont->switches++;
+
+    // loop through process list looking for NEW procs
+    list<PCB *>::iterator PCB_iter;
+    for (PCB_iter = processes.begin(); PCB_iter != processes.end(); PCB_iter++)
+    {
+        // if we find a process of status NEW
+        if((*PCB_iter)->state == NEW)
+        {
+            // change it to RUNNING and fork and execl it
+            (*PCB_iter)->state = RUNNING;
+            fork_proc((*PCB_iter)->name);
+        }
+    }
+
+    // loop though process list looking for READY procs
+    for (PCB_iter = processes.begin(); PCB_iter != processes.end(); PCB_iter++)
+    {
+        // if we find a process of status RUNNING which is not the idle process
+        // use c++ string comparison
+        // (std::string("A") != std::string("Z"))
+        if((*PCB_iter)->state == READY && std::string((*PCB_iter)->name) != std::string("idle"))
+        {
+            // change it to RUNNING and fork and execl it
+            (*PCB_iter)->state = RUNNING;
+            fork_proc((*PCB_iter)->name);
+        }
+    }
+
+    // loop though process list looking for the idle proc
+    for (PCB_iter = processes.begin(); PCB_iter != processes.end(); PCB_iter++)
+    {
+        // if we find the idle process
+        if(std::string((*PCB_iter)->name) != std::string("idle"))
+        {
+            // change it to RUNNING
+            (*PCB_iter)->state = RUNNING;
+            break;
+        }
+
+    }
 
     if (kill (tocont->pid, SIGCONT) == -1)
     {
